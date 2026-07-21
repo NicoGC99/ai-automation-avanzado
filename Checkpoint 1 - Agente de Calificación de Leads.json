@@ -1,0 +1,318 @@
+{
+  "name": "Checkpoint 1 - Agente de Calificación de Leads",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "69dd7dd6-c58b-476d-9b8f-0ea8c080940b",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "f8ad70b3-f697-462a-867a-15ceb92a96d1"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "documentURL": "https://docs.google.com/document/d/1J6SQcXDOtM_0SRzc49iTJ56P3VXTz9YKDr0-VpiyXUc/edit?usp=sharing",
+        "simple": false
+      },
+      "id": "39442840-e757-4e4a-b12d-8ec6d3b7dbff",
+      "name": "Obtener Datos de la Empresa",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "k0YwsBzM30WBdX1g",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('When chat message received').item.json.chatInput }}",
+        "options": {
+          "systemMessage": "=### ROL ###\nSos el Asistente de Calificación de Leads de la empresa. Atendés el chat comercial del sitio web y hablás con potenciales clientes que llegan buscando información sobre nuestros productos o servicios.\n\n### INFORMACIÓN DE LA EMPRESA (fuente: Google Doc, no editar a mano) ###\n{{ $json.content }}\nEsta es la ÚNICA información sobre la empresa que tenés disponible. No existe ninguna otra fuente de datos conectada a este agente.\n\n### ÁMBITO ###\nActuás únicamente en conversaciones de primer contacto comercial. NO cerrás ventas, NO das precios finales no confirmados, NO firmás acuerdos ni compromisos en nombre de la empresa, y NO respondés temas que no tengan relación con la calificación comercial (soporte técnico, RRHH, temas personales, etc. se derivan sin responder).\n\n### OBJETIVO ###\n1. Conversar de forma natural para identificar: nombre del lead, empresa (si aplica), un dato de contacto (email o teléfono) y la necesidad o interés concreto que menciona.\n2. Calificar al lead como CALIENTE (tiene urgencia y decisión de compra clara), TIBIO (interés real pero sin urgencia) o FRÍO (consulta exploratoria, sin intención de compra cercana), usando criterio BANT de forma flexible y sin presionar al usuario para que responda todo.\n3. Cuando ya tengas al menos el nombre y el interés concreto, registrar el lead en la planilla de seguimiento usando la herramienta Google Sheets. Este paso es obligatorio antes de cerrar la conversación, se ejecuta una sola vez por conversación.\n4. Cerrar siempre con un mensaje claro indicando el próximo paso (ej. \"en breve un asesor te va a contactar\").\n\n### REGLAS Y ESCALAMIENTO ###\n- Basate ÚNICAMENTE en el bloque \"INFORMACIÓN DE LA EMPRESA\" de arriba para hablar de productos, precios, plazos o condiciones. Si el usuario pregunta algo que no está ahí (un precio exacto, un plazo técnico, disponibilidad de stock, una característica específica, etc.), NO lo inventes bajo ninguna circunstancia: respondé que no tenés ese dato preciso a mano y que un asesor humano se lo va a confirmar.\n- Nunca inventes datos del lead que el usuario no haya dado explícitamente.\n- Nunca compartas información de precios que no esté en el bloque de la empresa, ni datos de otros leads o clientes.\n- Si el usuario pide hablar con una persona, hace un reclamo, pide un reembolso o se muestra molesto, escalá de inmediato: avisale que un asesor humano lo va a contactar a la brevedad, y de todas formas dejá el registro en la planilla con el estado de calificación que corresponda y una nota de \"requiere atención humana\".\n- Mantené un tono profesional y cercano. No uses giros de lenguaje inclusivo (por ejemplo 'todes', '@' o 'x' como marca de género) siguiendo el manual de estilo corporativo.\n- Si no lográs identificar ni el nombre ni un interés concreto, no ejecutes la herramienta de registro: seguí la conversación pidiendo esa información de forma amable.\n- Limitate a un máximo razonable de intercambios: si la conversación se estanca, ofrecé derivar directamente a un asesor humano."
+        }
+      },
+      "id": "5d9605b5-20d2-48a8-894a-d8a7141146d4",
+      "name": "AI Agent - Calificación de Leads",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        512,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "id": "0ed111e2-1865-4ebc-bfdd-806da99672fa",
+      "name": "Groq Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        448,
+        224
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "B5rub4mKnAkibtyo",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 10
+      },
+      "id": "90bd7700-0095-4d90-8e45-106f97646130",
+      "name": "Memoria de Conversación",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        576,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Registrá en la planilla de seguimiento comercial 'Leads' cada vez que hayas terminado de calificar a un lead en la conversación actual, es decir, cuando ya tengas al menos su nombre y su interés concreto. Ejecutala UNA sola vez por conversación, siempre al final, justo antes de despedirte del usuario. No la uses para buscar o consultar leads existentes, ni para cualquier tarea que no sea agregar el registro final de esta conversación. Si todavía no tenés el nombre o el interés del lead, NO ejecutes esta herramienta: seguí conversando para conseguir esos datos primero.",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1QEjKi7hbs5-Wq0g-e2hScZNrINiwwAg4lADj-ujMU9U",
+          "mode": "list",
+          "cachedResultName": "Andina Tech Solutions Leads",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1QEjKi7hbs5-Wq0g-e2hScZNrINiwwAg4lADj-ujMU9U/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1QEjKi7hbs5-Wq0g-e2hScZNrINiwwAg4lADj-ujMU9U/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Fecha": "={{ $now.format('yyyy-MM-dd HH:mm') }}",
+            "Nombre": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Nombre', `Nombre completo del lead identificado en la conversación`, 'string') }}",
+            "Empresa": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Empresa', ``, 'string') }}",
+            "Contacto": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Contacto', ``, 'string') }}",
+            "Interés": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Inter_s', ``, 'string') }}",
+            "Calificación": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Calificaci_n', ``, 'string') }}",
+            "Resumen": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Resumen', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Nombre",
+              "displayName": "Nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Empresa",
+              "displayName": "Empresa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Contacto",
+              "displayName": "Contacto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Interés",
+              "displayName": "Interés",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Calificación",
+              "displayName": "Calificación",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Resumen",
+              "displayName": "Resumen",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "64eaec93-5817-447a-b6ad-e83c65893fee",
+      "name": "Google Sheets",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.5,
+      "position": [
+        704,
+        224
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "sCRNIEXDCPvcEWo1",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "nicolas.gambone@gmail.com",
+        "subject": "=📋 Checkpoint 1 - Log de ejecución del agente ({{ $now.format('yyyy-MM-dd HH:mm') }})",
+        "message": "=Respuesta del agente:<br><br>{{ $json.output.replace(/\\n/g, '<br>') }}<br><br>Timestamp: {{ $now.format('yyyy-MM-dd HH:mm') }}",
+        "options": {}
+      },
+      "id": "44101630-a7cc-4eef-b34b-6e7dce58bf6d",
+      "name": "Gmail - Log de Observabilidad",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        912,
+        0
+      ],
+      "webhookId": "9cb5da6b-9372-4b99-a462-b589fe90a513",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "lsRN2F7U17C5p7tk",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Obtener Datos de la Empresa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Datos de la Empresa": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Calificación de Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Calificación de Leads": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Log de Observabilidad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Calificación de Leads",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memoria de Conversación": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent - Calificación de Leads",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent - Calificación de Leads",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "9b2195bc-a3c2-48e5-8bde-9404d91c16ff",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4d73c2649d7067994c734fca601ec9d1298a2db2faa9963db47fa1d3c65026b3"
+  },
+  "nodeGroups": [],
+  "id": "ri0nNXtKsClkR2Yo",
+  "tags": []
+}
