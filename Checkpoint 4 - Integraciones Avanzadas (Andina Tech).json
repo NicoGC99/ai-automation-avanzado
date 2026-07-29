@@ -1,0 +1,497 @@
+{
+  "name": "Checkpoint 4 - Integraciones Avanzadas (Andina Tech)",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {},
+        "options": {}
+      },
+      "id": "47a67b1a-b574-4b79-a502-1a55a2a736a5",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -448,
+        96
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "lsRN2F7U17C5p7tk",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "filt-1",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "auto-reply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "filt-2",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "out of office",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "filt-3",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "undeliverable",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "filt-4",
+              "leftValue": "={{ $json.from.value[0].address }}",
+              "rightValue": "no-reply@",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "filt-5",
+              "leftValue": "={{ $json.from.value[0].address }}",
+              "rightValue": "noreply@",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b665616a-c6a5-421d-89fc-1d16fe7979b8",
+      "name": "IF - Filtrar Auto-respuestas",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "set-from",
+              "name": "remitente_email",
+              "value": "={{ $json.from.value[0].address }}",
+              "type": "string"
+            },
+            {
+              "id": "set-name",
+              "name": "remitente_nombre",
+              "value": "={{ $json.from.value[0].name || $json.from.value[0].address.split('@')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "set-subject",
+              "name": "asunto",
+              "value": "={{ $json.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "set-body",
+              "name": "cuerpo_texto",
+              "value": "={{ $json.textPlain || $json.snippet }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e7fe5497-c605-4e49-9df4-768ed55d3a5f",
+      "name": "Limpiar Payload (MVP)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Asunto del email: {{ $json.asunto }}\n\nCuerpo del email:\n{{ $json.cuerpo_texto }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Sos un analista comercial de Andina Tech Solutions. Analizás un email entrante de un potencial cliente y extraés la información clave para registrar el lead y preparar una respuesta.\n\nDevolvés únicamente un objeto JSON válido, sin texto adicional ni markdown, con esta estructura exacta:\n{\n  \"interes\": \"resumen en una frase de lo que necesita el cliente\",\n  \"calificacion\": \"CALIENTE, TIBIO o FRIO según la urgencia e intención de compra\",\n  \"respuesta_sugerida\": \"borrador de respuesta profesional y cordial al cliente, en español rioplatense, máximo dos párrafos\"\n}\n\nReglas:\n- No inventes datos de productos ni precios que no conozcas.\n- Si el email no es una consulta comercial, poné calificacion: 'FRIO' y una respuesta_sugerida neutral."
+        }
+      },
+      "id": "7b51c86c-f08d-4b8e-b7f9-b953949784b0",
+      "name": "AI Agent - Analizar Consulta",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "id": "33597919-603a-4055-8ec4-83254a1e6063",
+      "name": "Groq Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        240,
+        224
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "B5rub4mKnAkibtyo",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"interes\": { \"type\": \"string\" },\n    \"calificacion\": { \"type\": \"string\" },\n    \"respuesta_sugerida\": { \"type\": \"string\" }\n  }\n}"
+      },
+      "id": "32846ccd-e1e0-41cb-8ccd-9d0e97901429",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        368,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "search",
+        "filterGroupsUi": {
+          "filterGroupsValues": [
+            {
+              "filtersUi": {
+                "filterValues": [
+                  {
+                    "propertyName": "email",
+                    "value": "={{ $('Limpiar Payload (MVP)').item.json.remitente_email }}"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "id": "4927462a-296c-4410-91fb-11364b2ee4fc",
+      "name": "HubSpot - Buscar Contacto (Look up)",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.1,
+      "position": [
+        576,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "fbwnRc8rH8yDmnSk",
+          "name": "HubSpot account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "exists-check",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5022fbd3-2544-43bc-b139-6c72a321d7ed",
+      "name": "IF - Contacto ya existe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "email": "={{ $('Limpiar Payload (MVP)').item.json.remitente_email }}",
+        "additionalFields": {
+          "firstName": "={{ $('Limpiar Payload (MVP)').item.json.remitente_nombre }}",
+          "lifeCycleStage": "lead"
+        },
+        "options": {}
+      },
+      "id": "4897fc98-d9be-4f0e-92d6-9f07c041abf0",
+      "name": "HubSpot - Crear Lead",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.1,
+      "position": [
+        1024,
+        80
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "fbwnRc8rH8yDmnSk",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "nicolas.gambone@gmail.com",
+          "mode": "list",
+          "cachedResultName": "nicolas.gambone@gmail.com"
+        },
+        "start": "={{ $now.plus(1, 'days').set({ hour: 10, minute: 0, second: 0 }).toISO() }}",
+        "end": "={{ $now.plus(1, 'days').set({ hour: 10, minute: 30, second: 0 }).toISO() }}",
+        "additionalFields": {
+          "description": "=Consulta: {{ $('AI Agent - Analizar Consulta').item.json.output.interes }}\n\nCalificación: {{ $('AI Agent - Analizar Consulta').item.json.output.calificacion }}\n\nContacto: {{ $('Limpiar Payload (MVP)').item.json.remitente_email }}",
+          "summary": "=Reunión comercial - {{ $('Limpiar Payload (MVP)').item.json.remitente_nombre }}"
+        }
+      },
+      "id": "84892180-54d5-4b6a-b07f-6f4c5b0d7471",
+      "name": "Google Calendar - Agendar Reunión",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1248,
+        0
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "Sm2Um3g75de09bYW",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "=RE: {{ $('Limpiar Payload (MVP)').item.json.asunto }}",
+        "message": "={{ $('AI Agent - Analizar Consulta').item.json.output.respuesta_sugerida }}",
+        "options": {
+          "sendTo": "={{ $('Limpiar Payload (MVP)').item.json.remitente_email }}"
+        }
+      },
+      "id": "50e9a6e1-012f-4385-bac8-657b41c68273",
+      "name": "Gmail - Crear Borrador (HITL)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1472,
+        0
+      ],
+      "webhookId": "461e71d1-6b65-4a33-ab10-d416b734bf29",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "lsRN2F7U17C5p7tk",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "56680c9d-3e1d-466c-84a1-e294e30e03dc",
+      "name": "Detener - Auto-respuesta",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        0,
+        192
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "IF - Filtrar Auto-respuestas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Filtrar Auto-respuestas": {
+      "main": [
+        [
+          {
+            "node": "Limpiar Payload (MVP)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Detener - Auto-respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiar Payload (MVP)": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Analizar Consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Analizar Consulta",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent - Analizar Consulta",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Analizar Consulta": {
+      "main": [
+        [
+          {
+            "node": "HubSpot - Buscar Contacto (Look up)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot - Buscar Contacto (Look up)": {
+      "main": [
+        [
+          {
+            "node": "IF - Contacto ya existe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Contacto ya existe?": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar - Agendar Reunión",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HubSpot - Crear Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot - Crear Lead": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar - Agendar Reunión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar - Agendar Reunión": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Crear Borrador (HITL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "3b628304-b105-453d-8023-1835b2207656",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4d73c2649d7067994c734fca601ec9d1298a2db2faa9963db47fa1d3c65026b3"
+  },
+  "nodeGroups": [],
+  "id": "vATUO2EA7Sj6nBoL",
+  "tags": []
+}
